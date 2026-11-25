@@ -34,6 +34,69 @@ npm run start:clear
 [Expo 로컬 모듈 안내](https://docs.expo.dev/modules/get-started/),
 [Apple Personal Team 안내](https://developer.apple.com/help/account/basics/about-your-developer-account/)
 
+## Mac·유료 Apple 멤버십 없는 사용자의 iPhone 테스트
+
+레포의 GitHub Actions가 **서명 전 Release IPA**를 만들고, 각 사용자는 Windows 또는 Mac의
+[Sideloadly](https://sideloadly.io/)에서 **본인의 무료 Apple 계정**으로 서명·설치합니다.
+JavaScript와 로컬 Core Haptics 모듈이 앱에 포함되므로 설치 후 Metro 연결은 필요 없습니다.
+Apple 계정·비밀번호·인증서·프로비저닝 프로파일을 GitHub Secrets에 등록할 필요가 없습니다.
+
+### 레포 소유자: 최초 설정과 빌드
+
+1. `.github/workflows/ios-unsigned.yml`, `scripts/build-ios-unsigned.sh`, `package.json`,
+   이 README를 `main` 브랜치에 커밋하고 push합니다.
+2. [레포 Actions](https://github.com/PREX-BIO/vibration_front/actions)에서
+   **Build iOS IPA (unsigned)**를 선택합니다. 최초 push부터 자동 실행됩니다.
+3. 수동 실행하려면 **Run workflow → Branch: main → Run workflow**를 누릅니다.
+   버튼이 없으면 워크플로 파일이 기본 브랜치에 올라갔는지 확인합니다.
+4. 실행 결과가 초록색 성공으로 바뀌면 해당 실행을 열고 아래 **Artifacts**에서
+   **Vibration-iOS-unsigned-실행번호**를 내려받습니다. ZIP을 풀면
+   `Vibration-unsigned.ipa`와 SHA-256 확인 파일이 나옵니다. IPA를 테스터에게 전달합니다.
+
+`main`에 앱 코드·네이티브 모듈·빌드 설정 변경을 push하면 다시 빌드합니다.
+결과물은 7일간 보관하며, 만료되면 **Run workflow**로 다시 생성합니다.
+Artifacts 직접 다운로드에는 GitHub 로그인과 레포 읽기 권한이 필요합니다.
+GitHub 계정 없는 테스터에게는 소유자가 내려받은 IPA 파일을 전달하면 됩니다.
+워크플로가 차단되면 레포 **Settings → Actions → General**에서 Actions 및
+`actions/checkout`, `actions/setup-node`, `actions/upload-artifact` 실행이 허용되는지 확인합니다.
+
+### Windows 사용자: 설치와 갱신
+
+1. [Sideloadly 공식 사이트](https://sideloadly.io/)에서 Windows용 프로그램을 설치합니다.
+   iTunes·iCloud 등 Windows 구성 요소는 해당 사이트의 최신 설치 안내를 따릅니다.
+2. iPhone을 USB로 연결하고 **이 컴퓨터를 신뢰**를 선택합니다.
+3. Sideloadly에서 iPhone을 선택하고 `Vibration-unsigned.ipa`를 넣습니다.
+   본인의 무료 Apple 계정으로 로그인한 뒤 **Start**를 누릅니다.
+4. iPhone **설정 → 개인정보 보호 및 보안 → 개발자 모드**를 켜고 재시동 안내를 따릅니다.
+   **설정 → 일반 → VPN 및 기기 관리**에서 본인 계정의 개발자 앱을 신뢰합니다.
+5. **Vibration**을 실행하고 진동 시험·측정을 진행합니다. Expo Go나 `npm start`는 필요 없습니다.
+
+무료 계정 서명은 7일마다 갱신해야 합니다. Sideloadly 자동 갱신은 PC가 켜져 있고,
+USB 또는 설정된 Wi-Fi 연결로 iPhone을 찾을 수 있을 때 동작합니다.
+무료 계정의 동시 사이드로드 앱 수는 3개로 제한됩니다.
+앱 업데이트 시에는 같은 Apple 계정과 번들 ID로 덮어 설치해 저장 데이터를 유지합니다.
+이 파일은 서명 전 IPA이므로 iPhone의 Safari에서 파일을 누르는 것만으로 설치되지는 않습니다.
+
+### 빌드 환경과 문제 확인
+
+워크플로는 Node.js 24, 표준 `xcode-27` macOS 러너의 Xcode 27.2를 사용합니다.
+`npm ci` → `npm run check` → Expo Prebuild → CocoaPods → 서명 없는 Release 빌드 → IPA 포장 순서입니다.
+`ios/`는 저장소에 올리지 않고 매번 생성하며, 로컬 모듈과 config plugin을 적용합니다.
+Apple 서명은 끄고 실제 기기용 arm64 실행 파일·JS 번들·진동 모듈 등록을 검사합니다.
+빌드 실패 시 해당 실행의 실패 단계와 **Vibration-iOS-logs-실행번호**를 확인합니다.
+GitHub의 성공 표시는 빌드·포장 성공이며, 각 iPhone의 무료 계정 서명·실행은 별도 확인해야 합니다.
+
+Mac에서 같은 IPA 생성 과정을 확인하려면, 기존 iOS 프로젝트와 Pods가 있는 상태에서 실행합니다.
+
+```sh
+npm run build:ios:unsigned
+# 결과: .test-build/ios-unsigned/Vibration-unsigned.ipa
+```
+
+[GitHub 수동 실행 안내](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow),
+[러너 및 사용량 안내](https://docs.github.com/en/actions/reference/runners/github-hosted-runners),
+[Sideloadly 설치·갱신 안내](https://sideloadly.io/faq)
+
 ## 사용 순서
 
 1. 휴대폰을 책상에 화면이 위로 향하게 놓고, 오른손 검지·엄지를 양옆 중앙에 댑니다.
