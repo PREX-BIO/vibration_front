@@ -1,22 +1,10 @@
 name: Build iOS IPA (unsigned)
+run-name: 'iOS IPA · ${{ github.ref_name }} · #${{ github.run_number }}'
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
-    paths:
-      - '.github/workflows/ios-unsigned.yml'
-      - 'scripts/build-ios-unsigned.sh'
-      - 'app/**'
-      - 'src/**'
-      - 'assets/**'
-      - 'modules/**'
-      - 'plugins/**'
-      - 'tests/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'app.json'
-      - '*config*'
+    branches: ['**']
 
 permissions:
   contents: read
@@ -107,6 +95,10 @@ jobs:
           4. iPhone에서 개발자 모드와 개발자 앱 신뢰를 설정하고 Vibration을 실행합니다.
 
           Release 앱에 JavaScript와 Core Haptics 모듈이 포함되어 있어 Metro가 필요 없습니다.
-          무료 계정의 서명은 7일마다 갱신해야 합니다. Sideloadly에서 자동 갱신을 설정할 수 있습니다.
+          새 코드를 테스트하려면 새 IPA를 같은 Apple 계정·번들 ID로 덮어 설치합니다.
+          무료 계정의 서명은 설치/갱신 시점부터 7일간 유효합니다. 코드 변경 없이 서명만 갱신할 때는
+          기존 IPA를 Sideloadly에서 다시 서명·설치하면 되며, GitHub 빌드는 필요 없습니다.
+          자동 갱신은 Sideloadly Daemon이 실행 중인 PC와 USB 또는 설정된 Wi-Fi 연결이 필요합니다.
+          Artifacts의 7일 보관 기간은 기기에 설치한 앱의 서명 유효 기간과 별개입니다.
           이 IPA는 서명 전 파일이므로 iPhone에서 링크를 누르는 것만으로 설치되지는 않습니다.
           SUMMARY

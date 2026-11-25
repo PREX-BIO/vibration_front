@@ -41,41 +41,94 @@ npm run start:clear
 JavaScript와 로컬 Core Haptics 모듈이 앱에 포함되므로 설치 후 Metro 연결은 필요 없습니다.
 Apple 계정·비밀번호·인증서·프로비저닝 프로파일을 GitHub Secrets에 등록할 필요가 없습니다.
 
-### 레포 소유자: 최초 설정과 빌드
+### 개발자: 코드 수정부터 IPA 전달까지
 
-1. `.github/workflows/ios-unsigned.yml`, `scripts/build-ios-unsigned.sh`, `package.json`,
-   이 README를 `main` 브랜치에 커밋하고 push합니다.
-2. [레포 Actions](https://github.com/PREX-BIO/vibration_front/actions)에서
-   **Build iOS IPA (unsigned)**를 선택합니다. 최초 push부터 자동 실행됩니다.
-3. 수동 실행하려면 **Run workflow → Branch: main → Run workflow**를 누릅니다.
-   버튼이 없으면 워크플로 파일이 기본 브랜치에 올라갔는지 확인합니다.
-4. 실행 결과가 초록색 성공으로 바뀌면 해당 실행을 열고 아래 **Artifacts**에서
-   **Vibration-iOS-unsigned-실행번호**를 내려받습니다. ZIP을 풀면
-   `Vibration-unsigned.ipa`와 SHA-256 확인 파일이 나옵니다. IPA를 테스터에게 전달합니다.
+1. **자동 빌드 설정을 브랜치에 반영합니다.**
+   `.github/workflows/ios-unsigned.yml`은 모든 브랜치의 push에서 실행됩니다.
+   `main`, `develop`, `feature/이름`, `fix/이름` 모두 포함하며 문서만 수정해도 빌드합니다.
+   태그 push는 자동 빌드 대상이 아닙니다. 기존 브랜치에는 이 변경을 merge 또는 cherry-pick으로
+   반영해야 합니다. 새 브랜치는 변경이 포함된 `main`에서 만들면 됩니다.
+2. **작업 브랜치에서 코드를 수정하고 검사합니다.**
+   파일을 저장하고 `npm run check`를 실행해 타입·테스트·린트·포맷을 확인합니다.
+   로컬에서 수정만 한 상태로는 GitHub 빌드에 포함되지 않습니다.
+3. **수정한 파일을 커밋하고 작업 브랜치에 push합니다.**
+   최초 브랜치 push는 `git push -u origin HEAD`, 이후에는 `git push`를 사용합니다.
+   브랜치를 `main`에 합치지 않아도 그 브랜치의 코드로 자동 빌드합니다.
+4. **GitHub에서 실행과 브랜치를 확인합니다.**
+   [레포 Actions](https://github.com/PREX-BIO/vibration_front/actions) →
+   **Build iOS IPA (unsigned)** → **iOS IPA · 브랜치명 · #실행번호**를 선택합니다.
+   테스트하려는 브랜치·커밋이 맞는지 확인하고 초록색 성공 표시를 기다립니다.
+   같은 브랜치에 연달아 push하면 진행 중이던 이전 빌드를 취소하고 최신 빌드를 실행합니다.
+   다른 브랜치의 빌드는 서로 취소하지 않습니다.
+5. **성공한 실행의 IPA를 다운로드합니다.**
+   실행 화면 아래 **Artifacts → Vibration-iOS-unsigned-실행번호**를 내려받고 ZIP을 풉니다.
+   안에 있는 `Vibration-unsigned.ipa`가 설치 파일입니다. `.ipa` 자체는 압축을 풀지 않습니다.
+   `Vibration-iOS-logs-실행번호`는 설치 파일이 아닌 문제 확인용 로그입니다.
+6. **팀원에게 IPA와 빌드 정보를 함께 전달합니다.**
+   브랜치명·실행번호·수정 내용을 같이 전달하면 어떤 버전을 테스트하는지 구분할 수 있습니다.
+   Artifacts 직접 다운로드에는 GitHub 로그인과 레포 읽기 권한이 필요합니다.
+   GitHub 계정 없는 테스터에게는 소유자가 내려받은 IPA 파일을 전달하면 됩니다.
 
-`main`에 앱 코드·네이티브 모듈·빌드 설정 변경을 push하면 다시 빌드합니다.
-결과물은 7일간 보관하며, 만료되면 **Run workflow**로 다시 생성합니다.
-Artifacts 직접 다운로드에는 GitHub 로그인과 레포 읽기 권한이 필요합니다.
-GitHub 계정 없는 테스터에게는 소유자가 내려받은 IPA 파일을 전달하면 됩니다.
+수동 실행은 **Actions → Build iOS IPA (unsigned) → Run workflow → Branch 선택 → Run workflow**입니다.
+버튼이 없으면 워크플로 파일이 기본 브랜치에 올라갔는지 확인합니다.
+선택한 브랜치에도 워크플로 파일이 있어야 합니다.
 워크플로가 차단되면 레포 **Settings → Actions → General**에서 Actions 및
 `actions/checkout`, `actions/setup-node`, `actions/upload-artifact` 실행이 허용되는지 확인합니다.
 
-### Windows 사용자: 설치와 갱신
+### 테스터: 최초 설치
 
-1. [Sideloadly 공식 사이트](https://sideloadly.io/)에서 Windows용 프로그램을 설치합니다.
-   iTunes·iCloud 등 Windows 구성 요소는 해당 사이트의 최신 설치 안내를 따릅니다.
-2. iPhone을 USB로 연결하고 **이 컴퓨터를 신뢰**를 선택합니다.
+1. [Sideloadly 공식 사이트](https://sideloadly.io/)에서 Windows 또는 Mac용 프로그램을 설치합니다.
+   Windows는 공식 사이트가 안내하는 웹 설치판 iTunes·iCloud 구성 요소도 설치합니다.
+2. 잠금을 해제한 iPhone을 데이터 전송 가능한 USB 케이블로 연결하고 **이 컴퓨터를 신뢰**를 선택합니다.
+   Sideloadly의 기기 목록에 iPhone이 표시되는지 확인합니다.
 3. Sideloadly에서 iPhone을 선택하고 `Vibration-unsigned.ipa`를 넣습니다.
-   본인의 무료 Apple 계정으로 로그인한 뒤 **Start**를 누릅니다.
+   본인의 무료 Apple 계정으로 로그인한 뒤 **Start**를 누릅니다. 암호·2단계 인증 요청에 응답하고
+   설치 완료를 기다립니다. 팀원마다 자신의 계정으로 설치합니다.
 4. iPhone **설정 → 개인정보 보호 및 보안 → 개발자 모드**를 켜고 재시동 안내를 따릅니다.
    **설정 → 일반 → VPN 및 기기 관리**에서 본인 계정의 개발자 앱을 신뢰합니다.
 5. **Vibration**을 실행하고 진동 시험·측정을 진행합니다. Expo Go나 `npm start`는 필요 없습니다.
 
-무료 계정 서명은 7일마다 갱신해야 합니다. Sideloadly 자동 갱신은 PC가 켜져 있고,
-USB 또는 설정된 Wi-Fi 연결로 iPhone을 찾을 수 있을 때 동작합니다.
-무료 계정의 동시 사이드로드 앱 수는 3개로 제한됩니다.
-앱 업데이트 시에는 같은 Apple 계정과 번들 ID로 덮어 설치해 저장 데이터를 유지합니다.
 이 파일은 서명 전 IPA이므로 iPhone의 Safari에서 파일을 누르는 것만으로 설치되지는 않습니다.
+
+### 수정한 버전으로 업데이트
+
+1. 새 빌드의 IPA를 다운로드하거나 개발자에게 전달받습니다.
+2. Sideloadly에 새 IPA를 넣고 **이전과 같은 Apple 계정·번들 ID**로 **Start**를 누릅니다.
+   기존 앱을 삭제하지 않고 덮어 설치합니다. 중요한 측정 기록은 앱의 JSON 공유로 별도 보관합니다.
+3. 설치가 끝나면 iPhone에서 Vibration을 다시 실행해 변경 내용을 확인합니다.
+
+현재 배포 방식은 Release IPA이므로 JavaScript·화면 수정도 새 IPA 설치 후 반영됩니다.
+브랜치가 달라도 번들 ID는 같으므로, 마지막으로 설치한 빌드가 기존 Vibration 앱을 교체합니다.
+자동 갱신을 쓰고 있다면 새 IPA를 설치할 때도 자동 갱신 옵션을 켜 둡니다.
+Sideloadly가 갱신 대상으로 보관하는 IPA도 새 버전으로 업데이트됩니다.
+
+### 무료 Apple 계정의 7일 서명 갱신
+
+**설치/재서명 시점부터 약 7일 동안 앱을 실행할 수 있습니다.** 기한이 지나면 다시 서명·설치해야 합니다.
+팀원마다 설치한 시각이 다르므로 만료 시점도 다릅니다. 코드가 바뀌지 않았다면 **새 GitHub 빌드는 필요 없습니다.**
+
+수동 갱신은 다음 순서입니다.
+
+1. 이전에 설치한 IPA 파일을 PC에 보관합니다.
+2. 만료되기 전, 예를 들어 설치 5~6일 뒤에 iPhone을 PC에 연결합니다.
+3. Sideloadly에서 같은 IPA·같은 Apple 계정·같은 번들 ID로 **Start**를 누릅니다.
+4. 다시 서명·설치가 완료되면 그 시점부터 다시 약 7일 동안 사용할 수 있습니다.
+   이미 만료되어 앱이 열리지 않아도 같은 방법으로 갱신합니다. 앱을 삭제할 필요는 없습니다.
+
+자동 갱신을 사용하려면 Sideloadly의 자동 갱신 옵션을 켜고 설치합니다.
+갱신 시에는 **PC가 켜져 있고 잠들지 않아야 하며, Sideloadly Daemon이 실행 중**이어야 합니다.
+아이폰도 USB로 연결되어 있거나, 최초 USB 페어링·Wi-Fi 동기화 설정 후 PC와 같은 네트워크에 있어야 합니다.
+Windows의 Wi-Fi 동기화는 iTunes의 기기 **요약 → 옵션 → Wi-Fi로 이 iPhone 동기화 → 적용**에서 설정합니다.
+Mac은 Finder에서 기기를 선택해 **일반 → Wi-Fi에 연결되어 있을 때 이 iPhone 보기 → 적용**을 사용합니다.
+PC가 꺼져 있거나 기기를 찾지 못하면 자동 갱신이 진행되지 않으므로 갱신 성공 여부를 확인합니다.
+갱신 후 앱을 사용하는 동안에는 PC 연결이 필요 없습니다.
+
+| 구분                       | 기준 시점                | 7일이 지나면                  | 필요한 작업                                              |
+| -------------------------- | ------------------------ | ----------------------------- | -------------------------------------------------------- |
+| GitHub Artifacts 보관 기간 | 빌드 결과물 업로드       | GitHub 다운로드 파일이 만료됨 | IPA를 이미 PC에 보관했다면 그대로 사용. 없으면 다시 빌드 |
+| 무료 Apple 계정 서명 기간  | 각 기기에 서명·설치/갱신 | 설치된 앱이 실행되지 않음     | 기존 IPA를 다시 서명·설치. 새 빌드는 불필요              |
+
+무료 계정의 동시 사이드로드 앱 수는 3개로 제한됩니다.
 
 ### 빌드 환경과 문제 확인
 
