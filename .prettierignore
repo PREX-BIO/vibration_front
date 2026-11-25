@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+dist/
+coverage/
+.test-build/
+.playwright-mcp/
+agent/
+ios/
+android/
+package-lock.json
+expo-env.d.ts

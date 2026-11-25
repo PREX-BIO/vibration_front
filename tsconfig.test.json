@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "strict": true,
+    "skipLibCheck": true,
+    "types": [],
+    "rootDir": "src",
+    "outDir": ".test-build"
+  },
+  "include": [
+    "src/types/session.ts",
+    "src/config/protocol.ts",
+    "src/lib/signal.ts",
+    "src/lib/chart.ts",
+    "src/lib/sessionController.ts",
+    "src/lib/sessionJson.ts",
+    "src/lib/replay.ts",
+    "src/lib/replaySession.ts",
+    "src/lib/dampingSignal.ts",
+    "src/lib/dampingController.ts",
+    "src/lib/dampingReplay.ts",
+    "src/lib/dampingChart.ts",
+    "src/lib/continuousVibrationDriver.ts"
+  ]
+}

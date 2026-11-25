@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Vibration",
+    "slug": "vibration",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "vibration",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hoyeungkim.vibration"
+    },
+    "android": {
+      "permissions": ["android.permission.VIBRATE"]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "./plugins/withReactNativeBuildSettings",
+      "expo-router",
+      "expo-system-ui",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "진동 측정을 위해 휴대폰의 가속도와 각속도 센서를 사용합니다."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
