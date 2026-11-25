@@ -66,6 +66,47 @@ test('iOS exclusively uses Core Haptics for preparation, playback and cancellati
   assert.deepEqual(d.log, [['ios.prepare'], ['ios.schedule', 0, 25000, 1.0, 0.5], ['ios.stop']]);
 });
 
+test('Android waveform playback forwards the whole finite pattern once and rejects removed repeat mode', () => {
+  const d = devices();
+  const output = createContinuousVibrationDriver('android', d.android, null);
+  const pattern = [0, 8000, 0, 8000, 0, 8000, 0, 1000];
+  output.startWaveform(pattern, false);
+  pattern[1] = 1;
+  output.stop();
+  assert.throws(() => output.startWaveform([0, 8000], true), /Invalid Android waveform/);
+  assert.deepEqual(d.log, [
+    ['android.start', [0, 8000, 0, 8000, 0, 8000, 0, 1000], false],
+    ['android.stop'],
+  ]);
+});
+
+test('invalid waveform requests and non-Android waveform playback never reach native APIs', () => {
+  const d = devices();
+  const output = createContinuousVibrationDriver('android', d.android, null);
+  for (const pattern of [
+    [],
+    [0],
+    [0, 0],
+    [1, 8000],
+    [0, -1],
+    [0, Infinity],
+    [0, NaN],
+    [0, 0.2],
+    [0, 8001],
+    [0, 8000, 0],
+    [0, 8000, 0, 8000, 0, 8000, 0, 8000],
+  ])
+    assert.throws(() => output.startWaveform(pattern, false), /Invalid Android waveform/);
+  assert.throws(() => output.startWaveform([0, 8000, 0, 8000], true), /Invalid Android waveform/);
+  for (const platform of ['ios', 'web'])
+    assert.throws(
+      () =>
+        createContinuousVibrationDriver(platform, d.android, d.ios).startWaveform([0, 8000], true),
+      /Android/,
+    );
+  assert.deepEqual(d.log, []);
+});
+
 test('iOS Expo Go and unsupported hardware give an error without falling back to pulses', () => {
   const d = devices();
   for (const [native, message] of [

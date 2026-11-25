@@ -1,6 +1,17 @@
 export type SensorName = 'accelerometer' | 'gyroscope';
 export type Axis3 = [number, number, number];
 export type SensorAccess = { available: boolean | null; permission: string | null };
+export type AndroidVibrationRenewal = {
+  request_ms: 9000;
+  interval_ms: 8000;
+  reason: 'galaxy_s10e' | 'galaxy_buddy3' | 'manual';
+};
+export type AndroidWaveformMode = 'once' | 'repeat';
+export type AndroidWaveform = {
+  mode: AndroidWaveformMode;
+  segment_ms: 8000;
+  pause_ms: 0;
+};
 export type DampingPhase = {
   phase_id: string;
   target_level: 'off' | 'settle' | 'contact' | 'low' | 'medium' | 'higher' | 'pinch';
@@ -144,6 +155,8 @@ export type DampingSession = {
   };
   device: {
     model: string | null;
+    /** Native model identifier, separate from the user's model memo. */
+    detected_model?: string | null;
     os: string | null;
     os_version: string | null;
     expo_version: string | null;
@@ -163,6 +176,9 @@ export type DampingSession = {
   config: DampingConfig;
   vibration: {
     api: 'ReactNative.Vibration' | 'CoreHaptics';
+    /** Historical re-request experiment; new measurements never populate this. */
+    android_renewal?: AndroidVibrationRenewal;
+    android_waveform?: AndroidWaveform;
     duration_ms?: number | null;
     duration_s?: number | null;
     event_type?: 'hapticContinuous' | 'android_continuous';
@@ -178,7 +194,7 @@ export type DampingSession = {
     intensity?: number | null;
     sharpness?: number | null;
     pattern: number[] | null;
-    repeat: false;
+    repeat: boolean;
     interval_ms: number | null;
     start_request_ms: number | null;
     stop_request_ms: number | null;

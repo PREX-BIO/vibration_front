@@ -16,6 +16,7 @@ const driver = createContinuousVibrationDriver(
 
 export const prepareContinuousVibration = driver.prepare;
 export const startContinuousVibration = driver.start;
+export const startAndroidWaveform = driver.startWaveform;
 export const stopContinuousVibration = driver.stop;
 export const scheduleContinuousVibration = driver.schedule;
 export const subscribeContinuousVibration = driver.subscribe;

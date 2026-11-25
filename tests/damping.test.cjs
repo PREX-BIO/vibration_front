@@ -434,6 +434,223 @@ test('Android late requests use only remaining time; expired requests abort with
   }
 });
 
+function androidRig(overrides = {}, model = 'SM-G970N') {
+  const seed = syntheticDampingSeed();
+  seed.device.os = 'android';
+  seed.device.detected_model = model;
+  return rig(overrides, seed, dampingProtocolForPlatform('android'));
+}
+
+test('all Android models start with the standard duration request, even after removed selections', () => {
+  for (const model of ['SM-G970N', 'SM-A156L', 'Pixel 9', null]) {
+    for (const selection of [undefined, 'auto', 'renewed', 'waveform_repeat']) {
+      const r = androidRig({}, model);
+      r.controller.start(r.seed, selection);
+      for (let t = 100; t <= 34000; t += 100) r.tick(t);
+      assert.deepEqual(
+        r.log.filter((v) => typeof v === 'object'),
+        [{ pattern: 25000, repeat: false, now: 6000 }],
+      );
+      const s = r.finished[0];
+      assert.equal(s.session.status, 'completed');
+      assert.equal(s.vibration.android_renewal, undefined);
+      assert.equal(s.vibration.android_waveform, undefined);
+      assert.equal(s.vibration.stop_request_ms, 28000);
+      assert.equal(r.timers.size, 0);
+    }
+  }
+});
+
+for (const preference of ['standard', 'waveform_once']) {
+  const waveform = preference === 'waveform_once';
+  test(preference + ': consecutive sessions use one finite request and preserve JSON', () => {
+    const r = androidRig({}, 'SM-A156L');
+    for (let cycle = 0; cycle < 2; cycle++) {
+      const base = cycle * 34000;
+      r.log.length = 0;
+      r.controller.start({ ...r.seed, id: preference + '-' + cycle }, preference);
+      for (let t = base + 100; t <= base + 34000; t += 100) r.tick(t);
+      assert.deepEqual(
+        r.log.filter((v) => typeof v === 'object'),
+        [
+          {
+            pattern: waveform ? [0, 8000, 0, 8000, 0, 8000, 0, 1000] : 25000,
+            repeat: false,
+            now: base + 6000,
+          },
+        ],
+      );
+      const s = r.finished[cycle];
+      assert.equal(s.session.status, 'completed');
+      assert.equal(s.session.actual_duration_ms, 31000);
+      assert.equal(s.vibration.start_request_ms, 3000);
+      assert.equal(s.vibration.stop_request_ms, 28000);
+      assert.equal(s.vibration.duration_ms, 25000);
+      assert.equal(s.vibration.duration_s, 25);
+      assert.equal(s.vibration.repeat, false);
+      assert.equal(s.vibration.android_renewal, undefined);
+      assert.deepEqual(
+        s.vibration.android_waveform,
+        waveform ? { mode: 'once', segment_ms: 8000, pause_ms: 0 } : undefined,
+      );
+      assert.equal(
+        s.events.some((e) => e.type === 'vibration_renew_request'),
+        false,
+      );
+      assert.equal(r.log.filter((v) => v === 'cancel').length, 1);
+      assert.equal(r.timers.size, 0);
+      const replay = importDamping(JSON.parse(serializeSession(s)));
+      assert.deepEqual(replay.vibration, s.vibration);
+      assert.deepEqual(replay.events, s.events);
+      assert.deepEqual(replay.features, s.features);
+      r.controller.settle(s);
+      r.controller.reset();
+    }
+    // Selecting the other method for the next session must discard prior playback settings.
+    r.controller.start(r.seed, waveform ? 'standard' : 'waveform_once');
+    r.tick(71000);
+    r.tick(74000);
+    const session = r.controller.getSnapshot().session;
+    assert.equal(session.vibration.android_waveform?.mode, waveform ? undefined : 'once');
+    assert.equal(session.vibration.repeat, false);
+    r.controller.stop();
+  });
+
+  test(
+    preference + ': late starts use only remaining time and expired requests never start',
+    () => {
+      for (const elapsed of [3350, 27999.8, 28000, 30000]) {
+        const r = androidRig();
+        r.controller.start(r.seed, preference);
+        r.tick(3000);
+        r.tick(3000 + elapsed);
+        const requests = r.log.filter((v) => typeof v === 'object');
+        if (elapsed < 28000) {
+          assert.equal(requests.length, 1);
+          assert.equal(requests[0].repeat, false);
+          if (waveform) {
+            assert.equal(
+              requests[0].pattern.reduce((sum, v) => sum + v, 0),
+              Math.ceil(28000 - elapsed),
+            );
+          } else assert.equal(requests[0].pattern, 28000 - elapsed);
+          r.tick(31000);
+        } else assert.deepEqual(requests, []);
+        r.controller.stop();
+        const s = r.finished[0];
+        assert.equal(r.log.filter((v) => v === 'cancel').length, 1);
+        assert.deepEqual(importDamping(JSON.parse(serializeSession(s))).vibration, s.vibration);
+      }
+    },
+  );
+
+  test(
+    preference +
+      ': stop, background, back and disposal cancel before cleanup and ignore stale callbacks',
+    () => {
+      for (const reason of ['user_stop', 'app_state:background', 'android_back', 'screen_leave']) {
+        const r = androidRig();
+        r.controller.start(r.seed, preference);
+        r.tick(3000);
+        r.tick(6000);
+        r.sample(6010);
+        const stale = [...r.timers][0];
+        r.log.length = 0;
+        if (reason === 'screen_leave') r.controller.dispose();
+        else r.controller.stop('aborted', reason);
+        assert.deepEqual(r.log.slice(0, 4), [
+          'cancel',
+          'unsubscribe:accelerometer',
+          'unsubscribe:gyroscope',
+          'timer_clear',
+        ]);
+        r.tick(14000);
+        stale();
+        assert.equal(
+          r.log.some((v) => typeof v === 'object'),
+          false,
+        );
+        assert.equal(r.finished[0].raw.accelerometer.length, 1);
+        assert.equal(r.finished[0].session.abort_reason, reason);
+        assert.equal(r.timers.size, 0);
+      }
+    },
+  );
+
+  test(
+    preference +
+      ': pre-start cancellation and native request failure preserve importable partial records',
+    () => {
+      for (const scenario of ['countdown', 'before_motor', 'request_failure']) {
+        const r = androidRig(
+          scenario === 'request_failure'
+            ? {
+                vibrate: () => {
+                  throw Error('native failure');
+                },
+              }
+            : {},
+        );
+        r.controller.start(r.seed, preference);
+        r.tick(scenario === 'countdown' ? 1000 : 3000);
+        if (scenario === 'request_failure') r.tick(6000);
+        r.controller.stop();
+        assert.equal(r.log.filter((v) => v === 'cancel').length, 1);
+        assert.equal(r.timers.size, 0);
+        if (scenario === 'countdown') assert.equal(r.finished.length, 0);
+        else {
+          const s = r.finished[0];
+          assert.equal(s.session.status, 'aborted');
+          assert.deepEqual(importDamping(JSON.parse(serializeSession(s))).vibration, s.vibration);
+        }
+      }
+    },
+  );
+}
+
+test('historical Android renewal and repeating waveform JSON retains its original settings and events', () => {
+  for (const kind of ['galaxy_s10e', 'galaxy_buddy3', 'manual', 'waveform_repeat']) {
+    const s = createDampingExample(dampingProtocolForPlatform('android'));
+    s.vibration.start_request_ms = 3000;
+    if (kind === 'waveform_repeat') {
+      s.vibration.android_waveform = { mode: 'repeat', segment_ms: 8000, pause_ms: 0 };
+      s.vibration.pattern = [0, 8000];
+      s.vibration.repeat = true;
+      s.vibration.duration_ms = null;
+    } else {
+      s.vibration.android_renewal = { request_ms: 9000, interval_ms: 8000, reason: kind };
+      s.vibration.duration_ms = 9000;
+      s.events.push({
+        type: 'vibration_renew_request',
+        actual_ms: 11000,
+        planned_ms: 11000,
+        phase_id: 'pinch_low',
+        detail: JSON.stringify({ pattern: 9000, repeat: false }),
+        sensor: null,
+      });
+    }
+    const replay = importDamping(JSON.parse(serializeSession(s)));
+    assert.deepEqual(replay.vibration, s.vibration);
+    assert.deepEqual(replay.events, s.events);
+    assert.deepEqual(replay.features, s.features);
+  }
+});
+
+test('iOS ignores Android selections and retains its Core Haptics schedule', () => {
+  for (const preference of ['standard', 'waveform_once', 'auto', 'renewed', 'waveform_repeat']) {
+    const r = rig();
+    r.controller.start(r.seed, preference);
+    r.tick(3000);
+    const s = r.controller.getSnapshot().session;
+    assert.equal(s.vibration.android_waveform, undefined);
+    assert.equal(s.vibration.android_renewal, undefined);
+    assert.equal(s.vibration.repeat, false);
+    assert.equal(r.log.filter((v) => typeof v === 'object').length, 1);
+    assert.equal(r.log.find((v) => typeof v === 'object').kind, 'schedule');
+    r.controller.stop();
+  }
+});
+
 test('delayed actual cue assigns raw samples and stable summaries to actual boundaries', () => {
   const r = rig();
   r.controller.start(r.seed);

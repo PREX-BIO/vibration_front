@@ -8,8 +8,14 @@ import { AppState, BackHandler, Platform } from 'react-native';
 
 import { dampingProtocolForPlatform, supportsDampingMeasurement } from '@/config/dampingProtocol';
 import {
+  DEFAULT_ANDROID_VIBRATION_PREFERENCE,
+  resolveAndroidVibrationPreference,
+  type AndroidVibrationPreference,
+} from '@/lib/androidVibration';
+import {
   prepareContinuousVibration,
   startContinuousVibration,
+  startAndroidWaveform,
   stopContinuousVibration,
   scheduleContinuousVibration,
   subscribeContinuousVibration,
@@ -25,6 +31,7 @@ import type { Environment } from '@/types/session';
 const INITIAL: DampingSnapshot = DAMPING_INITIAL;
 const supportsLive = supportsDampingMeasurement(Platform.OS);
 const protocol = dampingProtocolForPlatform(Platform.OS);
+const detectedModel = Platform.OS === 'android' ? (Platform.constants.Model ?? null) : null;
 
 async function sensorAccess(
   sensor: typeof Accelerometer | typeof Gyroscope,
@@ -53,6 +60,9 @@ export function usePinchSession() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [androidVibrationSelection, setAndroidVibrationPreference] =
+    useState<AndroidVibrationPreference>(DEFAULT_ANDROID_VIBRATION_PREFERENCE);
+  const androidVibrationPreference = resolveAndroidVibrationPreference(androidVibrationSelection);
   const controller = useRef<DampingController | null>(null);
   const sessionRef = useRef<DampingSession | null>(null);
   const mounted = useRef(false);
@@ -110,10 +120,9 @@ export function usePinchSession() {
           const subscription = source.addListener(callback);
           return () => subscription.remove();
         },
-        vibrate: (duration) => {
-          if (typeof duration !== 'number')
-            throw new Error('연속 진동에는 재생 시간이 필요합니다.');
-          startContinuousVibration(duration);
+        vibrate: (pattern, repeat) => {
+          if (Array.isArray(pattern)) startAndroidWaveform(pattern, repeat);
+          else startContinuousVibration(pattern);
         },
         cancelVibration: stopContinuousVibration,
         scheduleHaptics: scheduleContinuousVibration,
@@ -217,26 +226,30 @@ export function usePinchSession() {
       if (!accel.available || accel.permission !== 'granted')
         throw new Error('가속도계 접근 권한을 확인해 주세요.');
       prepareContinuousVibration();
-      controller.current?.start({
-        id: `live-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-        data_origin: 'live',
-        device: {
-          model: device || null,
-          os: Platform.OS,
-          os_version: String(Platform.Version),
-          runtime: isRunningInExpoGo() ? 'expo_go' : __DEV__ ? 'development_build' : 'standalone',
-          app_version: Constants.expoConfig?.version ?? null,
-          expo_version: Constants.expoConfig?.sdkVersion ?? null,
-          sensors: { accelerometer: accel, gyroscope: gyro },
+      controller.current?.start(
+        {
+          id: `live-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          data_origin: 'live',
+          device: {
+            model: device || null,
+            detected_model: detectedModel,
+            os: Platform.OS,
+            os_version: String(Platform.Version),
+            runtime: isRunningInExpoGo() ? 'expo_go' : __DEV__ ? 'development_build' : 'standalone',
+            app_version: Constants.expoConfig?.version ?? null,
+            expo_version: Constants.expoConfig?.sdkVersion ?? null,
+            sensors: { accelerometer: accel, gyroscope: gyro },
+          },
+          setup: {
+            ...environment,
+            hand: 'right',
+            pinch_type: 'thumb_index',
+            orientation: 'screen_up_top_away',
+            contact_points: 'right_thumb_left_index_midpoints',
+          },
         },
-        setup: {
-          ...environment,
-          hand: 'right',
-          pinch_type: 'thumb_index',
-          orientation: 'screen_up_top_away',
-          contact_points: 'right_thumb_left_index_midpoints',
-        },
-      });
+        androidVibrationPreference,
+      );
     } catch (error) {
       if (mounted.current) setActionError(errorMessage(error));
     } finally {
@@ -349,6 +362,9 @@ export function usePinchSession() {
     actionError,
     busy,
     testing,
+    detectedModel,
+    androidVibrationPreference,
+    setAndroidVibrationPreference,
     start,
     testVibration,
     showReplay,

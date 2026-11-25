@@ -44,6 +44,7 @@ const LABELS: Record<string, string> = {
   manual_artifact: '사용자가 이동 또는 추가 접촉을 표시함',
   aborted: '부분 기록',
   vibration_start_failed: '진동 시작 요청 실패',
+  vibration_renew_failed: '진동 재요청 실패',
   vibration_stop_failed: '진동 종료 요청 실패',
   insufficient_samples: '표본 부족',
   short_receive_span: '수신 범위 부족',
@@ -103,6 +104,8 @@ export default function PinchDemoScreen() {
     () => (session && result && shortWindow ? detailFrames(session) : undefined),
     [session, result, shortWindow],
   );
+  const androidVibrationStatus =
+    flow.androidVibrationPreference === 'waveform_once' ? '파형 1회 선택됨' : '기본 방식 선택됨';
   const title =
     stage === 'ready'
       ? '진동 신호 감소율'
@@ -214,6 +217,37 @@ export default function PinchDemoScreen() {
                 placeholderTextColor={colors.secondaryText}
                 style={[styles.input, { color: colors.text, borderColor: colors.border }]}
               />
+              {Platform.OS === 'android' && (
+                <>
+                  <Text style={[styles.label, { color: colors.text }]}>진동 방식</Text>
+                  <View style={styles.choices}>
+                    {(
+                      [
+                        ['standard', '기본 방식'],
+                        ['waveform_once', '파형 1회'],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <ActionButton
+                        key={value}
+                        title={label}
+                        colors={colors}
+                        variant="quiet"
+                        selected={flow.androidVibrationPreference === value}
+                        disabled={flow.busy || flow.testing}
+                        onPress={() => flow.setAndroidVibrationPreference(value)}
+                      />
+                    ))}
+                  </View>
+                  <Text style={[styles.small, { color: colors.secondaryText }]}>
+                    감지 모델: {flow.detectedModel || '확인 불가'} · {androidVibrationStatus}
+                  </Text>
+                  <Text style={[styles.small, { color: colors.secondaryText }]}>
+                    {flow.androidVibrationPreference === 'waveform_once'
+                      ? '휴지 없이 연결한 25초 파형을 한 번 재생합니다. 측정 3–28초에 진동합니다.'
+                      : '기본 방식으로 먼저 측정해 주세요. 진동이 중간에 끊기면 ‘파형 1회’를 선택해 다시 측정해 주세요.'}
+                  </Text>
+                </>
+              )}
               <Text style={[styles.small, { color: colors.secondaryText }]}>
                 {!flow.supportsLive
                   ? '새 측정은 iPhone 또는 Android 휴대폰에서 실행합니다. 이 화면에서는 합성 시험과 저장한 JSON 재생을 사용할 수 있습니다.'

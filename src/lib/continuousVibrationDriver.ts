@@ -1,5 +1,6 @@
 import type { HapticSchedule, HapticReceipt, HapticEvent } from '../types/damping';
 import { DAMPING_PROTOCOL } from '../config/dampingProtocol';
+import { ANDROID_WAVEFORM_SEGMENT_MS } from './androidVibration';
 
 export type IOSContinuousVibration = {
   apiVersion: number;
@@ -17,7 +18,7 @@ export type IOSContinuousVibration = {
 };
 
 type AndroidVibration = {
-  vibrate(durationMs: number, repeat: false): void;
+  vibrate(pattern: number | number[], repeat: boolean): void;
   cancel(): void;
 };
 
@@ -57,6 +58,24 @@ export function createContinuousVibrationDriver(
       } else {
         requireIOS().schedule(`test-${Date.now()}`, 0, durationMs, intensity, sharpness);
       }
+    },
+    startWaveform(pattern: number[], repeat: boolean) {
+      if (platform !== 'android') throw new Error('파형 시험은 Android에서만 사용할 수 있습니다.');
+      if (
+        repeat !== false ||
+        pattern.length < 2 ||
+        pattern.length > 8 ||
+        pattern.length % 2 !== 0 ||
+        !pattern.every(
+          (ms, index) =>
+            Number.isInteger(ms) &&
+            (index % 2 === 0 ? ms === 0 : ms > 0 && ms <= ANDROID_WAVEFORM_SEGMENT_MS),
+        ) ||
+        pattern.reduce((sum, ms) => sum + ms, 0) > 25000
+      )
+        throw new Error('Invalid Android waveform');
+      // Live measurements only use finite native waveforms.
+      android.vibrate([...pattern], false);
     },
     schedule(request: HapticSchedule) {
       const { playback_id, delay_ms, duration_ms, intensity, sharpness } = request;

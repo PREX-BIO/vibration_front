@@ -1,4 +1,5 @@
 import { DAMPING_PROTOCOL, phaseSettle, recordingDuration } from '../config/dampingProtocol';
+import { buildAndroidWaveformRequest } from './androidVibration';
 import type { DampingConfig, DampingSession, SensorSample } from '../types/damping';
 import { createDampingSession, type DampingSeed } from './dampingController';
 import { isFiniteNumber, phaseAtActual, reanalyzeDamping } from './dampingSignal';
@@ -274,6 +275,47 @@ function validateDamping(input: unknown): asserts input is DampingSession {
     return fail();
   if (![input.vibration.start_request_ms, input.vibration.stop_request_ms].every(nullable))
     return fail();
+  const renewal = input.vibration.android_renewal;
+  if (
+    renewal !== undefined &&
+    (!record(renewal) ||
+      c.vibration_mode !== 'android_continuous' ||
+      renewal.request_ms !== 9000 ||
+      renewal.interval_ms !== 8000 ||
+      !['galaxy_s10e', 'galaxy_buddy3', 'manual'].includes(String(renewal.reason)))
+  )
+    return fail();
+  const waveform = input.vibration.android_waveform;
+  if (waveform !== undefined) {
+    if (
+      !record(waveform) ||
+      c.vibration_mode !== 'android_continuous' ||
+      (waveform.mode !== 'once' && waveform.mode !== 'repeat') ||
+      waveform.segment_ms !== 8000 ||
+      waveform.pause_ms !== 0 ||
+      renewal !== undefined ||
+      typeof input.vibration.repeat !== 'boolean'
+    )
+      return fail();
+    if (input.vibration.pattern === null) {
+      // An interrupted pre-vibration phase has settings but no playback request.
+      if (input.vibration.start_succeeded || input.vibration.repeat) return fail();
+    } else {
+      if (!isFiniteNumber(input.vibration.start_request_ms)) return fail();
+      const expected = buildAndroidWaveformRequest(
+        waveform.mode,
+        (c.vibration_end_ms as number) - input.vibration.start_request_ms,
+      );
+      if (
+        !expected ||
+        input.vibration.repeat !== expected.repeat ||
+        JSON.stringify(input.vibration.pattern) !== JSON.stringify(expected.pattern)
+      )
+        return fail();
+    }
+  } else if (input.vibration.repeat === true) {
+    return fail();
+  }
   if (input.schema_version === '4.0') {
     const android = c.protocol_version === 'expo_desk_pinch_continuous_31s_android_v1';
     // Replay retains the intensity used when the record was collected.

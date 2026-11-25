@@ -9,6 +9,13 @@ import type {
   HapticEvent,
 } from '../types/damping';
 import {
+  DEFAULT_ANDROID_VIBRATION_PREFERENCE,
+  selectAndroidWaveformMode,
+  buildAndroidWaveformRequest,
+  ANDROID_WAVEFORM_SEGMENT_MS,
+  type AndroidVibrationPreference,
+} from './androidVibration';
+import {
   analyzeDampingWindow,
   isFiniteNumber,
   reanalyzeDamping,
@@ -39,7 +46,7 @@ export type DampingPorts = {
     callback: (sample: Measurement) => void,
     interval: number,
   ) => () => void;
-  vibrate: (pattern: number | number[], repeat: false) => void;
+  vibrate: (pattern: number | number[], repeat: boolean) => void;
   cancelVibration: () => void;
   scheduleHaptics?: (request: HapticSchedule) => HapticReceipt;
   subscribeHaptics?: (callback: (event: HapticEvent) => void) => () => void;
@@ -159,6 +166,7 @@ export class DampingController {
   private windows: FeatureFrame[] = [];
   private vibrationAttempted = false;
   private vibrationCancelled = false;
+  private androidWaveformMode: 'once' | null = null;
   private finishing = false;
   constructor(
     private ports: DampingPorts,
@@ -187,9 +195,16 @@ export class DampingController {
       sensor,
     });
   }
-  start(seed: DampingSeed) {
+  start(
+    seed: DampingSeed,
+    androidPreference: AndroidVibrationPreference = DEFAULT_ANDROID_VIBRATION_PREFERENCE,
+  ) {
     if (this.snapshot.stage !== 'ready') return false;
     this.config = JSON.parse(JSON.stringify(this.config)) as DampingConfig;
+    this.androidWaveformMode = selectAndroidWaveformMode(
+      this.config.vibration_mode === 'android_continuous' ? 'android' : 'ios',
+      androidPreference,
+    );
     this.seed = JSON.parse(JSON.stringify(seed));
     this.countdownStart = this.ports.now();
     this.generation++;
@@ -214,6 +229,12 @@ export class DampingController {
     this.vibrationCancelled = false;
     this.finishing = false;
     const s = createDampingSession(this.seed!, this.ports.utcNow(), this.config);
+    if (this.androidWaveformMode)
+      s.vibration.android_waveform = {
+        mode: this.androidWaveformMode,
+        segment_ms: ANDROID_WAVEFORM_SEGMENT_MS,
+        pause_ms: 0,
+      };
     s.phases[0].actual_start_ms = 0;
     s.phases[0].summary_start_ms = phaseSettle(this.config, s.phases[0]);
     this.snapshot = { stage: 'recording', elapsed_ms: 0, countdown: 0, session: s };
@@ -456,13 +477,19 @@ export class DampingController {
     }
     if (!this.vibrationAttempted && elapsed >= this.config.vibration_start_ms) {
       this.vibrationAttempted = true;
-      const request = buildVibrationRequest(this.config, this.config.vibration_end_ms - elapsed);
+      const remaining = this.config.vibration_end_ms - elapsed;
+      const request = this.androidWaveformMode
+        ? buildAndroidWaveformRequest(this.androidWaveformMode, remaining)
+        : buildVibrationRequest(this.config, remaining);
       if (request) {
         s.vibration.pattern = Array.isArray(request.pattern) ? request.pattern : null;
         s.vibration.duration_ms = typeof request.pattern === 'number' ? request.pattern : null;
+        if (this.androidWaveformMode && !request.repeat && Array.isArray(request.pattern))
+          s.vibration.duration_ms = request.pattern.reduce((sum, ms) => sum + ms, 0);
+        s.vibration.repeat = request.repeat;
         s.vibration.start_request_ms = elapsed;
         try {
-          this.ports.vibrate(request.pattern, false);
+          this.ports.vibrate(request.pattern, request.repeat);
           s.vibration.response_received_ms = this.ports.now() - this.recordStart;
           s.vibration.scheduled_start_ms = elapsed;
           s.vibration.scheduled_end_ms = this.config.vibration_end_ms;
