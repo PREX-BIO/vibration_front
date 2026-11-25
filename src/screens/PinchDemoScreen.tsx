@@ -8,12 +8,12 @@ import {
   Switch,
   Text,
   TextInput,
-  useColorScheme,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton } from '@/components/ActionButton';
 import { ContactGuide } from '@/components/ContactGuide';
+import { MeasurementSetupForm, SetupChoices } from '@/components/MeasurementSetupForm';
 import { DampingCharts, RawSensorPlots } from '@/components/DampingCharts';
 import {
   DAMPING_PROTOCOL,
@@ -26,7 +26,11 @@ import { Colors, type ThemeColors } from '@/constants/theme';
 import { usePinchSession } from '@/hooks/usePinchSession';
 import { detailFrames, phaseAtActual } from '@/lib/dampingSignal';
 import type { DampingSession, FeatureFrame, SensorQuality } from '@/types/damping';
-import type { Environment } from '@/types/session';
+import {
+  createMeasurementSetup,
+  DEFAULT_MEASUREMENT_ENVIRONMENT,
+  describeMeasurementSetup,
+} from '@/lib/measurementSetup';
 
 const fmt = (value: number | null | undefined, digits = 3) =>
   value == null ? '—' : Number(value.toPrecision(digits)).toString();
@@ -68,11 +72,11 @@ const CONTEXT = {
 };
 
 export default function PinchDemoScreen() {
-  const colors = Colors[useColorScheme() ?? 'light'];
+  const colors = Colors.light;
   const flow = usePinchSession();
-  const [table, setTable] = useState<Environment['table_material']>('wood');
-  const [caseOn, setCaseOn] = useState(false),
-    [device, setDevice] = useState('');
+  const [environment, setEnvironment] = useState(DEFAULT_MEASUREMENT_ENVIRONMENT);
+  const [instructions, setInstructions] = useState(false);
+  const [device, setDevice] = useState('');
   const [felt, setFelt] = useState<boolean | null>(null),
     [tested, setTested] = useState(false);
   const [details, setDetails] = useState(false),
@@ -125,9 +129,12 @@ export default function PinchDemoScreen() {
       >
         <View style={styles.page}>
           <View style={styles.row}>
-            <Text style={[styles.brand, { color: colors.primary }]}>VIBRATION / 신호 관찰</Text>
+            <Text style={[styles.brand, { color: colors.text }]}>Vibration</Text>
             <Text
-              style={[styles.badge, { color: colors.primary, backgroundColor: colors.accentSoft }]}
+              style={[
+                styles.badge,
+                { color: colors.secondaryText, backgroundColor: colors.surfaceMuted },
+              ]}
             >
               {session?.data_origin === 'synthetic_test'
                 ? '합성 시험'
@@ -148,66 +155,95 @@ export default function PinchDemoScreen() {
               <Text style={[styles.body, { color: colors.secondaryText }]}>
                 집는 정도를 바꾸면 가속도 변동이 기준보다 얼마나 줄거나 늘어나는지 관찰합니다.
               </Text>
-              <ContactGuide colors={colors} />
-              <Text style={[styles.body, { color: colors.text }]}>
-                준비 {DAMPING_PROTOCOL.countdown_ms / 1000}초 → 측정{' '}
-                {recordingDuration(DAMPING_PROTOCOL) / 1000}초
-              </Text>
+              <ContactGuide
+                colors={colors}
+                orientation={environment.orientation}
+                surfaceType={environment.surface_type}
+              />
+              <View
+                style={[
+                  styles.protocolStrip,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.protocolItem}>
+                  <Text style={[styles.small, { color: colors.secondaryText }]}>준비</Text>
+                  <Text style={[styles.protocolValue, { color: colors.text }]}>
+                    {DAMPING_PROTOCOL.countdown_ms / 1000}초
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.protocolItem,
+                    styles.protocolMiddle,
+                    { borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={[styles.small, { color: colors.secondaryText }]}>측정</Text>
+                  <Text style={[styles.protocolValue, { color: colors.text }]}>
+                    {recordingDuration(DAMPING_PROTOCOL) / 1000}초
+                  </Text>
+                </View>
+                <View style={styles.protocolItem}>
+                  <Text style={[styles.small, { color: colors.secondaryText }]}>연속 진동</Text>
+                  <Text style={[styles.protocolValue, { color: colors.primary }]}>
+                    {DAMPING_PROTOCOL.vibration_start_ms / 1000}–
+                    {DAMPING_PROTOCOL.vibration_end_ms / 1000}초
+                  </Text>
+                </View>
+              </View>
               <Text style={[styles.body, { color: colors.secondaryText }]}>
                 {DAMPING_PROTOCOL.phases
                   .filter((p) => p.target_level !== 'off')
                   .map(phaseLabel)
                   .join(' → ')}
               </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: instructions }}
+                aria-expanded={instructions}
+                onPress={() => setInstructions(!instructions)}
+                style={[styles.row, styles.disclosure, { borderColor: colors.border }]}
+              >
+                <Text style={[styles.label, { color: colors.text }]}>측정 자세와 진행 방법</Text>
+                <Text style={[styles.small, { color: colors.primary }]}>
+                  {instructions ? '접기' : '펼치기'}
+                </Text>
+              </Pressable>
+              {instructions && (
+                <View style={styles.group}>
+                  <Text style={[styles.small, { color: colors.secondaryText }]}>
+                    각 집기·힘 풀기 구간은{' '}
+                    {(DAMPING_PROTOCOL.phases[2].planned_end_ms -
+                      DAMPING_PROTOCOL.phases[2].planned_start_ms) /
+                      1000}
+                    초입니다. 처음 {DAMPING_PROTOCOL.phase_settle_ms / 1000}초에 천천히 힘을 바꾸고
+                    나머지는 유지하세요. 약함·중간·더 셈은 주관적 노력 2/10·4/10·6/10 정도이며 최대
+                    힘을 요구하지 않습니다.
+                  </Text>
+                  <Text style={[styles.small, { color: colors.secondaryText }]}>
+                    측정 {DAMPING_PROTOCOL.vibration_start_ms / 1000}–
+                    {DAMPING_PROTOCOL.vibration_end_ms / 1000}초에 연속 진동합니다. 준비 시간은 측정
+                    시간과 별도입니다.
+                  </Text>
+                  <Text style={[styles.small, { color: colors.secondaryText }]}>
+                    오른손 엄지·검지를 양옆 중앙에 두고 접촉을 유지하세요. 전완은 편하게 지지하고
+                    다른 손가락·손바닥은 휴대폰에서 떨어뜨립니다. 아래로 누르거나 들어 올리지 말고,
+                    불편하면 중단하세요.
+                  </Text>
+                </View>
+              )}
+              <Text style={[styles.section, { color: colors.text }]}>측정 환경</Text>
               <Text style={[styles.small, { color: colors.secondaryText }]}>
-                각 집기·힘 풀기 구간은{' '}
-                {(DAMPING_PROTOCOL.phases[2].planned_end_ms -
-                  DAMPING_PROTOCOL.phases[2].planned_start_ms) /
-                  1000}
-                초입니다. 처음 {DAMPING_PROTOCOL.phase_settle_ms / 1000}초에 천천히 힘을 바꾸고
-                나머지는 유지하세요. 약함·중간·더 셈은 주관적 노력 2/10·4/10·6/10 정도이며 최대 힘을
-                요구하지 않습니다.
+                지금 측정할 조건을 선택해 주세요. 선택한 환경은 측정 결과와 함께 저장됩니다.
               </Text>
-              <Text style={[styles.small, { color: colors.secondaryText }]}>
-                측정 {DAMPING_PROTOCOL.vibration_start_ms / 1000}–
-                {DAMPING_PROTOCOL.vibration_end_ms / 1000}초에 연속 진동합니다. 준비 시간은 측정
-                시간과 별도입니다.
-              </Text>
-              <Text style={[styles.small, { color: colors.secondaryText }]}>
-                오른손 엄지·검지를 양옆 중앙에 두고 접촉을 유지하세요. 전완은 편하게 지지하고 다른
-                손가락·손바닥은 휴대폰에서 떨어뜨립니다. 아래로 누르거나 들어 올리지 말고, 불편하면
-                중단하세요.
-              </Text>
-              <Text style={[styles.label, { color: colors.text }]}>책상 재질</Text>
-              <View style={styles.choices}>
-                {(
-                  [
-                    ['wood', '나무'],
-                    ['stone', '돌'],
-                    ['metal', '금속'],
-                    ['glass', '유리'],
-                    ['other', '기타'],
-                  ] as const
-                ).map(([value, label]) => (
-                  <ActionButton
-                    key={value}
-                    title={label}
-                    colors={colors}
-                    variant="quiet"
-                    selected={table === value}
-                    onPress={() => setTable(value)}
-                  />
-                ))}
-              </View>
-              <View style={styles.row}>
-                <Text style={[styles.body, { color: colors.text }]}>케이스 있음</Text>
-                <Switch
-                  value={caseOn}
-                  onValueChange={setCaseOn}
-                  accessibilityLabel="케이스 있음"
-                  trackColor={{ true: colors.primary, false: colors.border }}
-                />
-              </View>
+              <MeasurementSetupForm
+                value={environment}
+                onChange={setEnvironment}
+                colors={colors}
+                disabled={flow.busy || flow.testing}
+              />
+              <Text style={[styles.label, { color: colors.text }]}>기기 모델 메모</Text>
               <TextInput
                 value={device}
                 onChangeText={setDevice}
@@ -215,29 +251,30 @@ export default function PinchDemoScreen() {
                 placeholder="기기 모델 메모 (선택)"
                 accessibilityLabel="기기 모델 메모"
                 placeholderTextColor={colors.secondaryText}
-                style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+                editable={!flow.busy && !flow.testing}
+                style={[
+                  styles.input,
+                  {
+                    color: colors.text,
+                    borderColor: colors.border,
+                    backgroundColor: colors.surface,
+                  },
+                ]}
               />
               {Platform.OS === 'android' && (
                 <>
                   <Text style={[styles.label, { color: colors.text }]}>진동 방식</Text>
-                  <View style={styles.choices}>
-                    {(
-                      [
-                        ['standard', '기본 방식'],
-                        ['waveform_once', '파형 1회'],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <ActionButton
-                        key={value}
-                        title={label}
-                        colors={colors}
-                        variant="quiet"
-                        selected={flow.androidVibrationPreference === value}
-                        disabled={flow.busy || flow.testing}
-                        onPress={() => flow.setAndroidVibrationPreference(value)}
-                      />
-                    ))}
-                  </View>
+                  <SetupChoices
+                    label="진동 방식"
+                    options={[
+                      { value: 'standard', label: '기본 방식' },
+                      { value: 'waveform_once', label: '파형 1회' },
+                    ]}
+                    value={flow.androidVibrationPreference}
+                    onChange={flow.setAndroidVibrationPreference}
+                    colors={colors}
+                    disabled={flow.busy || flow.testing}
+                  />
                   <Text style={[styles.small, { color: colors.secondaryText }]}>
                     감지 모델: {flow.detectedModel || '확인 불가'} · {androidVibrationStatus}
                   </Text>
@@ -285,6 +322,12 @@ export default function PinchDemoScreen() {
                   </View>
                 </>
               )}
+              <View style={[styles.setupSummary, { backgroundColor: colors.surfaceMuted }]}>
+                <Text style={[styles.label, { color: colors.text }]}>이번 측정 조건</Text>
+                <Text style={[styles.small, { color: colors.secondaryText }]}>
+                  {describeMeasurementSetup(createMeasurementSetup(environment))}
+                </Text>
+              </View>
               <ActionButton
                 title="측정 시작"
                 colors={colors}
@@ -298,7 +341,7 @@ export default function PinchDemoScreen() {
                 onPress={() => {
                   setDetails(false);
                   setSelectedId(null);
-                  void flow.start({ table_material: table, case_on: caseOn, note: '' }, device);
+                  void flow.start(environment, device);
                 }}
               />
               {felt !== true && flow.supportsLive && (
@@ -334,7 +377,9 @@ export default function PinchDemoScreen() {
             <>
               <Text style={[styles.countdown, { color: colors.primary }]}>{flow.countdown}</Text>
               <Text style={[styles.body, { color: colors.secondaryText }]}>
-                힘 빼고 접촉만 유지하세요. 측정 중에는 화면을 누를 필요가 없습니다.
+                {environment.orientation === 'screen_down_top_away'
+                  ? '지금 화면이 아래로 향하도록 놓고, 힘을 빼고 접촉만 유지하세요.'
+                  : '힘 빼고 접촉만 유지하세요. 측정 중에는 화면을 누를 필요가 없습니다.'}
               </Text>
               <ActionButton
                 title="준비 취소"
@@ -398,6 +443,19 @@ export default function PinchDemoScreen() {
                       : `${(session.session.actual_duration_ms / 1000).toFixed(1)}초 기록을 저장합니다.`}{' '}
                   서로 다른 집기 강도는 구간별로 비교합니다.
                 </Text>
+              )}
+              {result && (
+                <View style={[styles.setupSummary, { backgroundColor: colors.surfaceMuted }]}>
+                  <Text style={[styles.label, { color: colors.text }]}>기록된 측정 환경</Text>
+                  <Text style={[styles.small, { color: colors.secondaryText }]}>
+                    {describeMeasurementSetup(session.setup)}
+                  </Text>
+                  {!!session.setup.note && (
+                    <Text style={[styles.small, { color: colors.secondaryText }]}>
+                      {session.setup.note}
+                    </Text>
+                  )}
+                </View>
               )}
               <FrameCard
                 session={session}
@@ -571,7 +629,11 @@ export default function PinchDemoScreen() {
             </Text>
           )}
           <Text style={[styles.footer, { color: colors.secondaryText }]}>
-            엄지–검지 · 오른손 · 책상 지지
+            엄지–검지 · 오른손 ·{' '}
+            {(session?.setup.surface_type ?? environment.surface_type) === 'floor'
+              ? '바닥'
+              : '책상'}{' '}
+            지지
           </Text>
         </View>
       </ScrollView>
@@ -626,10 +688,10 @@ function FrameCard({
           ? `${(frame.window_end_ms / 1000).toFixed(1)}초 · ${phase ? phaseLabel(phase) : '—'} · 분석 범위 ${(frame.window_start_ms / 1000).toFixed(1)}–${(frame.window_end_ms / 1000).toFixed(1)}초`
           : '최근 2초의 분석 창 준비 중'}
       </Text>
-      <Text style={[styles.body, { color: colors.text }]}>
+      <Text style={[styles.body, { color: colors.acceleration }]}>
         A {mg(frame?.accel.ac_rms_g)} mg / A₀ {mg(b)} mg
       </Text>
-      <Text style={[styles.body, { color: colors.text }]}>
+      <Text style={[styles.body, { color: colors.angularVelocity }]}>
         Ω {fmt(frame?.gyro.rms_magnitude_rad_s, 4)} rad/s
       </Text>
       {frame?.reduction_valid && (
@@ -760,26 +822,38 @@ function PhaseTable({ session, colors }: { session: DampingSession; colors: Them
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { flexGrow: 1 },
-  page: { width: '100%', maxWidth: 680, alignSelf: 'center', padding: 24, gap: 16 },
+  page: {
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
+    padding: 20,
+    paddingBottom: 40,
+    gap: 16,
+  },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  brand: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-  badge: { fontSize: 11, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  title: { fontSize: 29, fontWeight: '700', lineHeight: 40 },
+  brand: { fontSize: 18, fontWeight: '600' },
+  badge: { fontSize: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  title: { fontSize: 28, fontWeight: '600', lineHeight: 40 },
   action: { fontSize: 26, fontWeight: '600' },
   body: { fontSize: 15, lineHeight: 24 },
-  small: { fontSize: 11, lineHeight: 18 },
+  small: { fontSize: 13, lineHeight: 20 },
   label: { fontSize: 14, fontWeight: '600' },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  group: { gap: 10 },
-  input: { borderWidth: 1, borderRadius: 10, padding: 14, minHeight: 48 },
-  countdown: { fontSize: 110, textAlign: 'center', padding: 30 },
+  group: { gap: 12 },
+  input: { borderWidth: 1, borderRadius: 8, padding: 12, minHeight: 48, fontSize: 15 },
+  countdown: { fontSize: 104, textAlign: 'center', padding: 32, fontVariant: ['tabular-nums'] },
+  protocolStrip: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, paddingVertical: 16 },
+  protocolItem: { flex: 1, alignItems: 'center', gap: 4 },
+  protocolMiddle: { borderLeftWidth: 1, borderRightWidth: 1 },
+  protocolValue: { fontSize: 20, lineHeight: 28, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  setupSummary: { padding: 16, borderRadius: 12, gap: 8 },
   track: { height: 6, overflow: 'hidden', borderRadius: 3 },
   card: { borderWidth: 1, borderRadius: 16, padding: 20, gap: 12 },
   value: { fontSize: 38, lineHeight: 52, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  section: { fontSize: 20, fontWeight: '600', paddingTop: 10 },
-  disclosure: { borderBottomWidth: 1, paddingVertical: 15 },
+  section: { fontSize: 20, fontWeight: '600', paddingTop: 16 },
+  disclosure: { borderBottomWidth: 1, paddingVertical: 16 },
   table: { width: 800, borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
-  tableRow: { flexDirection: 'row', minHeight: 50, alignItems: 'center' },
+  tableRow: { flexDirection: 'row', minHeight: 52, alignItems: 'center' },
   cell: {
     flex: 1,
     fontSize: 12,
@@ -788,5 +862,5 @@ const styles = StyleSheet.create({
     padding: 8,
     fontVariant: ['tabular-nums'],
   },
-  footer: { textAlign: 'center', fontSize: 11, paddingVertical: 14 },
+  footer: { textAlign: 'center', fontSize: 12, paddingVertical: 16 },
 });

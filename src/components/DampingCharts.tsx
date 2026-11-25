@@ -16,6 +16,7 @@ export function TimePlot({
   onSelect,
   maxGap = 100,
   raw = false,
+  lineColor = colors.primary,
 }: {
   title: string;
   points: PlotPoint[];
@@ -26,6 +27,7 @@ export function TimePlot({
   onSelect?: (ms: number) => void;
   maxGap?: number;
   raw?: boolean;
+  lineColor?: string;
 }) {
   const [width, setWidth] = useState(342);
   const duration = Math.max(
@@ -57,8 +59,8 @@ export function TimePlot({
       ),
     );
   return (
-    <View style={styles.plot}>
-      <Text style={[styles.label, { color: colors.text }]}>{title}</Text>
+    <View style={[styles.plot, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <Text style={[styles.label, { color: lineColor }]}>{title}</Text>
       <View
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
         onStartShouldSetResponder={() => !!onSelect}
@@ -96,7 +98,7 @@ export function TimePlot({
                 height={bottom - top}
                 fill={
                   p.target_level === 'off'
-                    ? colors.border
+                    ? colors.surfaceMuted
                     : p.target_level === 'contact'
                       ? colors.surface
                       : colors.accentSoft
@@ -125,7 +127,7 @@ export function TimePlot({
               x={left - 5}
               y={y(0) + 3}
               fill={colors.secondaryText}
-              fontSize={9}
+              fontSize={11}
               textAnchor="end"
             >
               0
@@ -156,7 +158,7 @@ export function TimePlot({
                 y={Math.max(12, y(reference) - 4)}
                 fill={colors.danger}
                 textAnchor="end"
-                fontSize={10}
+                fontSize={11}
               >
                 고정 기준 A₀
               </SvgText>
@@ -177,10 +179,8 @@ export function TimePlot({
               key={i}
               d={segment.path}
               fill="none"
-              stroke={
-                segment.context === 'motor_off' && !raw ? colors.secondaryText : colors.primary
-              }
-              strokeWidth={1.6}
+              stroke={segment.context === 'motor_off' && !raw ? colors.secondaryText : lineColor}
+              strokeWidth={2}
               strokeDasharray={
                 !raw && ['phase_transition', 'motor_settle'].includes(segment.context)
                   ? '4 3'
@@ -202,7 +202,7 @@ export function TimePlot({
               x={x(t)}
               y={159}
               fill={colors.secondaryText}
-              fontSize={10}
+              fontSize={11}
               textAnchor="middle"
             >
               {(t / 1000).toFixed(t % 1000 ? 1 : 0)}초
@@ -232,7 +232,7 @@ function ViewTick({
   return (
     <>
       <Line x1={x} x2={350} y1={y} y2={y} stroke={colors.border} strokeWidth={0.6} />
-      <SvgText x={x - 5} y={y + 3} fill={colors.secondaryText} fontSize={9} textAnchor="end">
+      <SvgText x={x - 5} y={y + 3} fill={colors.secondaryText} fontSize={11} textAnchor="end">
         {value === 0 ? '0' : Number(value.toPrecision(3)).toString()}
       </SvgText>
     </>
@@ -272,6 +272,7 @@ export function DampingCharts({
       />
       <TimePlot
         title="가속도 변동 A · mg (가속도 단위)"
+        lineColor={colors.acceleration}
         session={session}
         colors={colors}
         cursor={cursor}
@@ -283,6 +284,7 @@ export function DampingCharts({
       />
       <TimePlot
         title="각속도 크기 Ω · rad/s"
+        lineColor={colors.angularVelocity}
         session={session}
         colors={colors}
         cursor={cursor}
@@ -296,6 +298,7 @@ export function DampingCharts({
       {detail && (
         <TimePlot
           title="상세 0.5초 가속도 AC RMS · mg"
+          lineColor={colors.acceleration}
           session={session}
           colors={colors}
           cursor={cursor}
@@ -429,6 +432,9 @@ export function RawSensorPlots({
         <TimePlot
           key={series.title}
           {...series}
+          lineColor={
+            series.title.startsWith('가속도') ? colors.acceleration : colors.angularVelocity
+          }
           session={session}
           colors={colors}
           cursor={cursor}
@@ -447,8 +453,8 @@ export function RawSensorPlots({
   );
 }
 const styles = StyleSheet.create({
-  group: { gap: 18 },
-  plot: { gap: 4 },
-  label: { fontSize: 13, fontWeight: '600' },
-  small: { fontSize: 11, lineHeight: 18 },
+  group: { gap: 16 },
+  plot: { gap: 8, padding: 12, borderWidth: 1, borderRadius: 12 },
+  label: { fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  small: { fontSize: 13, lineHeight: 20 },
 });

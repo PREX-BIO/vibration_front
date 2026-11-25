@@ -26,7 +26,8 @@ import { pickSessionJson, saveSession, shareSession } from '@/lib/sessionFile';
 import type { SavedFile } from '@/lib/sessionJson';
 import { reanalyzeDamping } from '@/lib/dampingSignal';
 import type { DampingSession, SensorAccess } from '@/types/damping';
-import type { Environment } from '@/types/session';
+import type { MeasurementEnvironment } from '@/types/setup';
+import { createMeasurementSetup } from '@/lib/measurementSetup';
 
 const INITIAL: DampingSnapshot = DAMPING_INITIAL;
 const supportsLive = supportsDampingMeasurement(Platform.OS);
@@ -200,7 +201,7 @@ export function usePinchSession() {
     };
   }, [active]);
 
-  const start = async (environment: Environment, device: string) => {
+  const start = async (environment: MeasurementEnvironment, device: string) => {
     if (
       !supportsLive ||
       sensor !== 'available' ||
@@ -240,13 +241,7 @@ export function usePinchSession() {
             expo_version: Constants.expoConfig?.sdkVersion ?? null,
             sensors: { accelerometer: accel, gyroscope: gyro },
           },
-          setup: {
-            ...environment,
-            hand: 'right',
-            pinch_type: 'thumb_index',
-            orientation: 'screen_up_top_away',
-            contact_points: 'right_thumb_left_index_midpoints',
-          },
+          setup: createMeasurementSetup(environment),
         },
         androidVibrationPreference,
       );

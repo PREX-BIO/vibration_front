@@ -17,7 +17,7 @@ export function ActionButton({
   disabled?: boolean;
   selected?: boolean;
 }) {
-  const filled = variant === 'primary' || selected;
+  const filled = variant === 'primary' && selected === undefined;
   return (
     <Pressable
       accessibilityRole="button"
@@ -27,17 +27,29 @@ export function ActionButton({
       style={({ pressed }) => [
         styles.button,
         {
-          backgroundColor: filled
-            ? colors.primary
-            : variant === 'secondary'
-              ? colors.surface
-              : 'transparent',
-          borderColor: variant === 'quiet' && !selected ? 'transparent' : colors.border,
-          opacity: disabled ? 0.45 : pressed ? 0.75 : 1,
+          backgroundColor: selected
+            ? colors.accentSoft
+            : filled
+              ? colors.primary
+              : variant === 'secondary'
+                ? colors.surface
+                : 'transparent',
+          borderColor:
+            selected || filled
+              ? colors.primary
+              : variant === 'quiet'
+                ? 'transparent'
+                : colors.border,
+          opacity: disabled ? 0.5 : pressed ? 0.75 : 1,
         },
       ]}
     >
-      <Text style={[styles.text, { color: filled ? colors.background : colors.text }]}>
+      <Text
+        style={[
+          styles.text,
+          { color: filled ? colors.onPrimary : selected ? colors.primary : colors.text },
+        ]}
+      >
         {title}
       </Text>
     </Pressable>
@@ -47,9 +59,9 @@ export function ActionButton({
 const styles = StyleSheet.create({
   button: {
     minHeight: 48,
-    paddingVertical: 13,
-    paddingHorizontal: 18,
-    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

@@ -3,6 +3,7 @@ import { buildAndroidWaveformRequest } from './androidVibration';
 import type { DampingConfig, DampingSession, SensorSample } from '../types/damping';
 import { createDampingSession, type DampingSeed } from './dampingController';
 import { isFiniteNumber, phaseAtActual, reanalyzeDamping } from './dampingSignal';
+import { validSetupExtension } from './measurementSetup';
 import { replaySession } from './replaySession';
 
 export function syntheticDampingSeed(): DampingSeed {
@@ -161,6 +162,7 @@ function validateDamping(input: unknown): asserts input is DampingSession {
     !Array.isArray(input.phases)
   )
     return fail();
+  if (!validSetupExtension(input.setup)) return fail();
   const s = input.session,
     c = input.config;
   if (

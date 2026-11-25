@@ -164,15 +164,7 @@ export type DampingSession = {
     runtime: string | null;
     sensors: Record<SensorName, SensorAccess>;
   };
-  setup: {
-    hand: 'right';
-    pinch_type: 'thumb_index';
-    table_material: string;
-    case_on: boolean;
-    orientation: 'screen_up_top_away';
-    contact_points: 'right_thumb_left_index_midpoints';
-    note: string;
-  };
+  setup: import('./setup').DampingSetup;
   config: DampingConfig;
   vibration: {
     api: 'ReactNative.Vibration' | 'CoreHaptics';

@@ -1,11 +1,11 @@
 import { Link } from 'expo-router';
-import { StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 
 export default function NotFoundScreen() {
-  const colors = Colors[useColorScheme() ?? 'light'];
+  const colors = Colors.light;
 
   return (
     <SafeAreaView

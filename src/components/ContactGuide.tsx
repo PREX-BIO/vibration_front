@@ -1,17 +1,28 @@
 import Svg, { Circle, Line, Path, Rect, Text } from 'react-native-svg';
 
 import type { ThemeColors } from '@/constants/theme';
+import type { ScreenOrientation, SurfaceType } from '@/types/setup';
 
-export function ContactGuide({ colors }: { colors: ThemeColors }) {
+export function ContactGuide({
+  colors,
+  orientation = 'screen_up_top_away',
+  surfaceType = 'desk',
+}: {
+  colors: ThemeColors;
+  orientation?: ScreenOrientation;
+  surfaceType?: SurfaceType;
+}) {
+  const faceDown = orientation === 'screen_down_top_away';
+  const surface = surfaceType === 'floor' ? '바닥' : '책상';
   return (
     <Svg
       width="100%"
       height={198}
       viewBox="0 0 340 198"
       accessibilityRole="image"
-      accessibilityLabel="책상에 휴대폰 뒷면을 놓고, 오른손 검지는 왼쪽 중앙, 엄지는 오른쪽 중앙에서 서로 마주 보게 집습니다."
+      accessibilityLabel={`${surface}에 휴대폰 ${faceDown ? '화면' : '뒷면'}을 놓고, 오른손 검지는 왼쪽 중앙, 엄지는 오른쪽 중앙에서 서로 마주 보게 집습니다.`}
     >
-      <Rect x={15} y={18} width={310} height={150} rx={20} fill={colors.accentSoft} />
+      <Rect x={15} y={18} width={310} height={150} rx={16} fill={colors.surfaceMuted} />
       <Rect
         x={123}
         y={12}
@@ -22,17 +33,21 @@ export function ContactGuide({ colors }: { colors: ThemeColors }) {
         stroke={colors.border}
         strokeWidth={2}
       />
-      <Line
-        x1={159}
-        y1={24}
-        x2={181}
-        y2={24}
-        stroke={colors.border}
-        strokeWidth={4}
-        strokeLinecap="round"
-      />
-      <Text x={170} y={71} textAnchor="middle" fill={colors.secondaryText} fontSize={11}>
-        화면이 위로
+      {faceDown ? (
+        <Circle cx={140} cy={30} r={6} fill={colors.secondaryText} />
+      ) : (
+        <Line
+          x1={159}
+          y1={24}
+          x2={181}
+          y2={24}
+          stroke={colors.border}
+          strokeWidth={4}
+          strokeLinecap="round"
+        />
+      )}
+      <Text x={170} y={71} textAnchor="middle" fill={colors.text} fontSize={12}>
+        {faceDown ? '화면이 아래로' : '화면이 위로'}
       </Text>
       <Circle cx={123} cy={92} r={7} fill={colors.primary} />
       <Circle cx={217} cy={92} r={7} fill={colors.primary} />
@@ -51,7 +66,7 @@ export function ContactGuide({ colors }: { colors: ThemeColors }) {
         엄지
       </Text>
       <Text x={170} y={189} textAnchor="middle" fill={colors.secondaryText} fontSize={12}>
-        단단하고 수평인 책상 · 오른손
+        단단하고 수평인 {surface} · 오른손
       </Text>
     </Svg>
   );
